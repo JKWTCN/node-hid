@@ -1,6 +1,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cwchar>
+#include <cmath>
 
 #include "util.h"
 
@@ -199,6 +200,31 @@ std::string copyArrayOrBufferIntoVector(const Napi::Value &val, std::vector<unsi
     {
         return "unexpected data to send, expecting an array or buffer";
     }
+}
+
+std::string parseInputReportParameters(const Napi::CallbackInfo &info, uint8_t &reportId, size_t &bufSize)
+{
+    if (info.Length() != 2 || !info[0].IsNumber() || !info[1].IsNumber())
+    {
+        return "need report ID and length parameters in getInputReport";
+    }
+
+    const double id = info[0].As<Napi::Number>().DoubleValue();
+    const double length = info[1].As<Napi::Number>().DoubleValue();
+    if (!std::isfinite(id) || std::floor(id) != id || id < 0 || id > 255)
+    {
+        return "Report ID must be an integer between 0 and 255 in getInputReport";
+    }
+
+    // USB control transfers have a 16-bit length. Bound allocations before converting.
+    if (!std::isfinite(length) || std::floor(length) != length || length < 1 || length > 65535)
+    {
+        return "Length must be an integer between 1 and 65535 in getInputReport";
+    }
+
+    reportId = static_cast<uint8_t>(id);
+    bufSize = static_cast<size_t>(length);
+    return "";
 }
 
 DeviceContext::~DeviceContext()

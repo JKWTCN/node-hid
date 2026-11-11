@@ -22,6 +22,7 @@
 
 #include <sstream>
 #include <vector>
+#include <new>
 
 #include "devices.h"
 #include "util.h"
@@ -380,6 +381,57 @@ Napi::Value HID::getFeatureReport(const Napi::CallbackInfo &info)
   return retval;
 }
 
+Napi::Value HID::getInputReport(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+
+  uint8_t reportId;
+  size_t bufSize;
+  std::string parameterError = parseInputReportParameters(info, reportId, bufSize);
+  if (parameterError != "")
+  {
+    Napi::TypeError::New(env, parameterError).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  if (!_hidHandle)
+  {
+    Napi::TypeError::New(env, "Cannot access closed device").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  std::vector<unsigned char> buf;
+  try
+  {
+    buf.resize(bufSize);
+  }
+  catch (const std::bad_alloc &)
+  {
+    Napi::Error::New(env, "could not allocate input report buffer").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  buf[0] = reportId;
+
+  int returnedLength = hid_get_input_report(_hidHandle, buf.data(), buf.size());
+  if (returnedLength < 0)
+  {
+    Napi::TypeError::New(env, appendLastHidError(_hidHandle, "could not get input report from device")).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  if (static_cast<size_t>(returnedLength) > buf.size())
+  {
+    Napi::TypeError::New(env, "invalid input report length returned by device").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  Napi::Array retval = Napi::Array::New(env, returnedLength);
+  for (int i = 0; i < returnedLength; i++)
+  {
+    retval.Set(i, Napi::Number::New(env, buf[i]));
+  }
+  return retval;
+}
+
 Napi::Value HID::sendFeatureReport(const Napi::CallbackInfo &info)
 {
   Napi::Env env = info.Env();
@@ -532,6 +584,7 @@ Napi::Value HID::Initialize(Napi::Env &env)
                                                     InstanceMethod("readInterrupt", &HID::readInterrupt),
                                                     InstanceMethod("write", &HID::write, napi_enumerable),
                                                     InstanceMethod("getFeatureReport", &HID::getFeatureReport, napi_enumerable),
+                                                    InstanceMethod("getInputReport", &HID::getInputReport, napi_enumerable),
                                                     InstanceMethod("sendFeatureReport", &HID::sendFeatureReport, napi_enumerable),
                                                     InstanceMethod("setNonBlocking", &HID::setNonBlocking, napi_enumerable),
                                                     InstanceMethod("readSync", &HID::readSync, napi_enumerable),

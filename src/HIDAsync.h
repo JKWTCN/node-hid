@@ -23,6 +23,7 @@ private:
     Napi::Value write(const Napi::CallbackInfo &info);
     Napi::Value setNonBlocking(const Napi::CallbackInfo &info);
     Napi::Value getFeatureReport(const Napi::CallbackInfo &info);
+    Napi::Value getInputReport(const Napi::CallbackInfo &info);
     Napi::Value sendFeatureReport(const Napi::CallbackInfo &info);
     Napi::Value read(const Napi::CallbackInfo &info);
     Napi::Value getDeviceInfo(const Napi::CallbackInfo &info);

@@ -552,6 +552,75 @@ Napi::Value HIDAsync::getFeatureReport(const Napi::CallbackInfo &info)
   return (new GetFeatureReportWorker(env, _hidHandle, reportId, bufSize))->QueueAndRun();
 }
 
+class GetInputReportWorker : public PromiseAsyncWorker<std::shared_ptr<DeviceContext>>
+{
+public:
+  GetInputReportWorker(
+      Napi::Env &env,
+      std::shared_ptr<DeviceContext> hid,
+      uint8_t reportId,
+      size_t bufSize)
+      : PromiseAsyncWorker(env, hid),
+        reportId(reportId),
+        bufferLength(bufSize) {}
+
+  // This code will be executed on the worker thread. Note: Napi types cannot be used
+  void Execute() override
+  {
+    if (context->hid)
+    {
+      buffer.resize(bufferLength);
+      buffer[0] = reportId;
+      returnedLength = hid_get_input_report(context->hid, buffer.data(), buffer.size());
+      if (returnedLength < 0)
+      {
+        SetError(appendLastHidError(context->hid, "could not get input report from device"));
+      }
+      else if (static_cast<size_t>(returnedLength) > buffer.size())
+      {
+        SetError("invalid input report length returned by device");
+      }
+    }
+    else
+    {
+      SetError("device has been closed");
+    }
+  }
+
+  Napi::Value GetPromiseResult(const Napi::Env &env) override
+  {
+    return Napi::Buffer<unsigned char>::Copy(env, buffer.data(), returnedLength);
+  }
+
+private:
+  uint8_t reportId;
+  size_t bufferLength;
+  int returnedLength = 0;
+  std::vector<unsigned char> buffer;
+};
+
+Napi::Value HIDAsync::getInputReport(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+
+  if (!_hidHandle || _hidHandle->is_closed)
+  {
+    Napi::TypeError::New(env, "device has been closed").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  uint8_t reportId;
+  size_t bufSize;
+  std::string parameterError = parseInputReportParameters(info, reportId, bufSize);
+  if (parameterError != "")
+  {
+    Napi::TypeError::New(env, parameterError).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  return (new GetInputReportWorker(env, _hidHandle, reportId, bufSize))->QueueAndRun();
+}
+
 class SendFeatureReportWorker : public PromiseAsyncWorker<std::shared_ptr<DeviceContext>>
 {
 public:
@@ -837,6 +906,7 @@ Napi::Function HIDAsync::Initialize(Napi::Env &env)
                                                          InstanceMethod("readStop", &HIDAsync::readStop),
                                                          InstanceMethod("write", &HIDAsync::write, napi_enumerable),
                                                          InstanceMethod("getFeatureReport", &HIDAsync::getFeatureReport, napi_enumerable),
+                                                         InstanceMethod("getInputReport", &HIDAsync::getInputReport, napi_enumerable),
                                                          InstanceMethod("sendFeatureReport", &HIDAsync::sendFeatureReport, napi_enumerable),
                                                          InstanceMethod("setNonBlocking", &HIDAsync::setNonBlocking, napi_enumerable),
                                                          InstanceMethod("read", &HIDAsync::read, napi_enumerable),

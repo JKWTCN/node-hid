@@ -37,6 +37,8 @@ std::string appendLastHidReadError(hid_device *hid, std::string message);
  */
 std::string copyArrayOrBufferIntoVector(const Napi::Value &val, std::vector<unsigned char> &message);
 
+std::string parseInputReportParameters(const Napi::CallbackInfo &info, uint8_t &reportId, size_t &bufSize);
+
 /**
  * Application-wide shared state.
  * This is referenced by the main thread and every worker_thread where node-hid has been loaded and not yet unloaded.

@@ -103,6 +103,7 @@ that talk to specific devices in some way. Some interesting ones:
 - [`test-blink1.js`](./src/test-blink1.js) - Fade colors on blink(1) RGB LED
 - [`test-bigredbutton.js`](./src/test-bigredbutton.js) - Read Dreamcheeky Big Red Button
 - [`test-teensyrawhid.js`](./src/test-teensyrawhid.js) - Read/write Teensy running RawHID "Basic" Arduino sketch
+- [`test-input-report.js`](./src/test-input-report.js) - Check Input Report bindings; pass a device path, Report ID and length to test a device supporting GET_REPORT
 
 To try them out, run them with `node src/showdevices.js` from within the node-hid directory.
 
@@ -486,6 +487,13 @@ Notes:
 - `report_id` - HID feature report id to get
 - `report_length` - length of report
 
+### `device.getInputReport(report_id, report_length)`
+
+- `report_id` - integer from 0 to 255; use 0 for devices without numbered reports
+- `report_length` - integer from 1 to 65535, including the Report ID byte; backend/device limits may be smaller
+- Returns a `Promise<Buffer>` containing only the bytes returned by HIDAPI, including the Report ID. Errors reject the Promise.
+- Requests an INPUT report using HIDAPI's `hid_get_input_report()`. See [Requesting input reports](#requesting-input-reports) for device and backend requirements.
+
 ### `device.setNonBlocking(no_block)`
 
 - `no_block` - boolean (or `1`/`0`). Set to `true` (or `1`) to enable non-blocking reads
@@ -571,6 +579,13 @@ Notes:
 - `report_id` - HID feature report id to get
 - `report_length` - length of report
 
+### `device.getInputReport(report_id, report_length)`
+
+- `report_id` - integer from 0 to 255; use 0 for devices without numbered reports
+- `report_length` - integer from 1 to 65535, including the Report ID byte; backend/device limits may be smaller
+- Returns a `number[]` containing only the bytes returned by HIDAPI, including the Report ID. Errors throw an exception.
+- Requests an INPUT report synchronously using HIDAPI's `hid_get_input_report()`. See [Requesting input reports](#requesting-input-reports) for device and backend requirements.
+
 ### `device.setNonBlocking(no_block)`
 
 - `no_block` - boolean (or `1`/`0`). Set to `true` (or `1`) to enable non-blocking reads
@@ -579,6 +594,19 @@ Notes:
 ---
 
 ## General notes:
+
+### Requesting input reports
+
+`getInputReport()` exposes HIDAPI's `hid_get_input_report()`, issuing GET_REPORT
+over the control endpoint for USB HID devices. Firmware must support INPUT
+GET_REPORT requests. This does not consume Interrupt IN data from `read()` or
+`data` events. The 65535-byte limit bounds allocations to USB's 16-bit transfer size.
+
+The bundled Windows, macOS, Linux hidraw and libusb backends implement this
+operation. Linux hidraw requires kernel 5.11+ for `HIDIOCGINPUT`. Unsupported
+requests and disconnections produce errors. Async requests use the existing
+device queue and finish before a subsequent `close()` releases the handle;
+requests after closing starts reject. There is no configurable timeout or cancellation.
 
 ### Thread safety, Worker threads, Context-aware modules
 
